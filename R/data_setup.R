@@ -32,7 +32,8 @@ if (!file.exists(folder_path)) {
 }
 
 # Save Data
-write.csv(pbp_data, file.path(folder_path, "pbp_raw_data.csv"))
+data.table::fwrite(pbp_data, file.path(folder_path, "pbp_raw_data.csv"),
+                   row.names = FALSE)
 
 ################################################################################
 # Load Rosters
@@ -48,7 +49,8 @@ if (!file.exists(folder_path)) {
 }
 
 # Save Data
-write.csv(rosters, file.path(folder_path, "rosters.csv"))
+data.table::fwrite(rosters, file.path(folder_path, "rosters.csv"),
+                   row.names = FALSE)
 
 ################################################################################
 # Load Player Stats
@@ -65,4 +67,5 @@ if (!file.exists(folder_path)) {
 }
 
 # Save Data
-write.csv(player_stats, file.path(folder_path, "raw_player_stats.csv"))
+data.table::fwrite(player_stats, file.path(folder_path, "raw_player_stats.csv"),
+                   row.names = FALSE)
