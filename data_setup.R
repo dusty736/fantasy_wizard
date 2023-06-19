@@ -41,3 +41,9 @@ write.csv(pbp_data, file.path(folder_path, "pbp_raw_data.csv"))
 
 rosters <- progressr::with_progress(nflreadr::load_rosters(seasons = seasons))
 
+################################################################################
+# Load Player Stats
+################################################################################
+
+player_stats <- nflreadr::load_player_stats(seasons = seasons,
+                                  stat_type = c("offense", "kicking"))
