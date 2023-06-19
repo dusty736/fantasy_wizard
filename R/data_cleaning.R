@@ -68,5 +68,20 @@ game_data <- pbp_data %>%
             away_score = max(total_away_score),
             winning_team = ifelse(max(total_home_score) > max(total_away_score),
                                   home_team,
-                                  away_team))
+                                  away_team)) %>% 
+  ungroup(.)
 
+# Get Coach data
+coaching_dictionary <- game_data %>% 
+  pivot_longer(., cols=c(home_coach, away_coach), names_to='home_away', values_to = 'coach') %>% 
+  mutate(team = ifelse(home_away == 'home_coach',
+                       home_team,
+                       away_team)) %>% 
+  dplyr::select(coach, season, team) %>% 
+  distinct() %>% 
+  arrange(coach, season, team) %>% 
+  group_by(coach, team) %>% 
+  summarize(stint_start = min(season),
+            stint_end = max(season)) %>% 
+  ungroup(.) %>% 
+  arrange(coach, stint_start, team)
