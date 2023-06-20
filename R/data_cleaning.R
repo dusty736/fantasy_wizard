@@ -48,7 +48,7 @@ pbp_vars <- c("play_id", "game_id", "old_game_id", "home_team", "away_team",
 
 # Load data
 pbp_data <- data.table::fread("data/raw/pbp/pbp_raw_data.csv",
-                     stringsAsFactors=FALSE) %>% 
+                     stringsAsFactors=FALSE, nrows = 1000) %>% 
   dplyr::select(pbp_vars)
 
 # Get game data
@@ -71,22 +71,28 @@ game_data <- pbp_data %>%
                                   away_team)) %>% 
   ungroup(.)
 
-# Get Coach data
+################################################################################
+# Process Coaching Data
+################################################################################
+
+# Get Coach timeline data
 coaching_dictionary <- game_data %>% 
   pivot_longer(., cols=c(home_coach, away_coach), names_to='home_away', values_to = 'coach') %>% 
   mutate(team = ifelse(home_away == 'home_coach',
                        home_team,
                        away_team)) %>% 
-  dplyr::select(coach, season, team) %>% 
+  dplyr::select(coach, season, week, team) %>% 
   distinct() %>% 
   arrange(coach, season, team) %>% 
   group_by(coach, team) %>% 
   summarize(stint_start = min(season),
-            stint_end = max(season)) %>% 
+            stint_end = max(season),
+            week_start = min(week),
+            week_end = max(week)) %>% 
   ungroup(.) %>% 
-  arrange(coach, stint_start, team)
+  arrange(coach, stint_start, week_start, team)
 
-# Get coaching decision data
+# Separate home and away data
 away_data <- pbp_data %>% 
   mutate(season = substr(game_id, 1, 4),
          score_differential = total_away_score - total_home_score,
@@ -125,36 +131,7 @@ home_data <- pbp_data %>%
 
 coach_total_data <- rbind(away_data, home_data)
 
-# coaching variable ideas
-# most common play on each down
-# 3rd down conversion rate
-# 4th down attempt rate
-# 4th down conversion rate
-# Run/pass ratio
-# Pass formation ratio
-# short/long pass ratio
-# Average time for using timeouts in each half
-# win/loss record
-# Home/away differences
-
-coaching_passing_aggregation <- coach_total_data %>% 
-  group_by(coach, week, season) %>% 
-  mutate(n_offensive_plays = n(),
-         n_3rd_down = sum(down == 3 & (third_down_converted | third_down_failed) , na.rm=TRUE),
-         n_3rd_down_pass = sum(down == 3 & play_type == 'pass', na.rm=TRUE),
-         n_3rd_down_rush = sum(down == 3 & play_type == 'run', na.rm=TRUE),
-         n_3rd_down_converted = sum(third_down_converted, na.rm=TRUE),
-         n_3rd_down_failed = sum(third_down_failed, na.rm=TRUE),
-         yrds_to_go_3rd_down = mean(ydstogo, na.rm=TRUE),
-         n_4th_down = sum(down == 4, na.rm=TRUE),
-         n_4th_down_pass = sum(down == 4 & play_type == 'pass', na.rm=TRUE),
-         n_4th_down_rush = sum(down == 4 & play_type == 'run', na.rm=TRUE),
-         n_4th_down_converted = sum(fourth_down_converted, na.rm=TRUE),
-         n_4th_down_failed = sum(fourth_down_failed, na.rm=TRUE),
-         ) %>% 
-  filter(play_type == 'pass') %>% 
-  summarize()
-
+# Get 3rd down coaching data
 coaching_3rd_down <- coach_total_data %>% 
   filter(down == 3) %>% 
   group_by(coach, home_away, week, season) %>% 
@@ -176,6 +153,7 @@ coaching_3rd_down <- coach_total_data %>%
                                                       mean_pct_3rd_down_deep_pass, mean_3rd_down_conversion_rate,
                                                       to_go_3rd_down), names_sep = "_")
 
+# Get 4th down coaching data
 coaching_4th_down <- coach_total_data %>% 
   filter(down == 4) %>% 
   group_by(coach, home_away, week, season) %>% 
@@ -197,7 +175,7 @@ coaching_4th_down <- coach_total_data %>%
                                                       mean_pct_4th_down_deep_pass, mean_4th_down_conversion_rate,
                                                       to_go_4th_down), names_sep = "_")
   
-
+# Get game-wise data
 coaching_game_aggregation <- coach_total_data %>% 
   left_join(., game_data[c('game_id', 'home_score', 'away_score', 'winning_team')],
             by='game_id') %>% 
@@ -207,7 +185,15 @@ coaching_game_aggregation <- coach_total_data %>%
                            away_score),
             opposing_score = ifelse(home_away == 'away', 
                                     home_score,
-                                    away_score)) %>% 
+                                    away_score),
+            n_sack_allowed = sum(sack),
+            n_fumble_allowed = sum(fumble),
+            n_qb_hit_allowed = sum(qb_hit),
+            n_pass_touchdown = sum(pass_touchdown),
+            n_rush_touchdown = sum(rush_touchdown),
+            n_interception_allowed = sum(interception),
+            pct_1st_down_pass = sum(first_down_pass) / (sum(first_down_pass) + sum(first_down_rush)),
+            n_1st_down_penalty = sum(first_down_penalty)) %>% 
   mutate(win = ifelse(score > opposing_score,
                       1,
                       0)) %>% 
@@ -222,9 +208,18 @@ coaching_win_loss <- coaching_game_aggregation %>%
             points_allowed = sum(opposing_score, na.rm=TRUE),
             ppg = mean(score, na.rm=TRUE),
             ppg_allowed = mean(opposing_score, na.rm=TRUE),
-            avg_differential = mean(score - opposing_score, na.rm=TRUE)) %>% 
+            avg_differential = mean(score - opposing_score, na.rm=TRUE),
+            avg_pass_td = mean(n_pass_touchdown),
+            avg_rush_td = mean(n_rush_touchdown),
+            avg_1st_down_penalty = mean(n_1st_down_penalty),
+            avg_1st_down_pass_pct = mean(pct_1st_down_pass),
+            avg_int_thrown = mean(n_interception_allowed),
+            avg_fumbles_allowed = mean(n_fumble_allowed),
+            avg_sack_allowed = mean(n_sack_allowed),
+            avg_qb_hit_allowed = mean(n_qb_hit_allowed)) %>% 
   mutate_if(is.numeric, round, 3)
 
+# Get home-away splits
 coaching_win_loss_home_away <- coaching_game_aggregation %>% 
   group_by(coach, season, home_away) %>% 
   summarize(total_wins = sum(win, na.rm=TRUE),
@@ -247,41 +242,100 @@ coaching_win_loss_home_away <- coaching_game_aggregation %>%
                                                         win_pct, mean_ppg,
                                                         mean_ppg_allowed, mean_differential), names_sep = "_")
 
+# Timeouts
+timeout_data <- pbp_data %>% 
+  filter(timeout == 1) %>% 
+  mutate(season = substr(game_id, 1, 4),
+         coach = ifelse(timeout_team == home_team,
+                        home_coach,
+                        away_coach)) %>% 
+  group_by(game_id, coach, season, week, timeout_team, game_half) %>% 
+  summarize(n_timeout = n(),
+            first_timeout = max(half_seconds_remaining),
+            last_timeout = min(half_seconds_remaining)) %>% 
+  pivot_wider(names_from = game_half, values_from = c(n_timeout, first_timeout,
+                                                      last_timeout), names_sep = "_") %>% 
+  group_by(coach) %>% 
+  summarize(avg_half1_timeouts_taken = mean(n_timeout_Half1, na.rm = TRUE),
+            avg_half1_tr_first_timeout = mean(first_timeout_Half1, na.rm=TRUE),
+            avg_half1_tr_last_timeout = mean(last_timeout_Half1, na.rm=TRUE),
+            avg_half2_timeouts_taken = mean(n_timeout_Half2, na.rm = TRUE),
+            avg_half2_tr_first_timeout = mean(first_timeout_Half2, na.rm=TRUE),
+            avg_half2_tr_last_timeout = mean(last_timeout_Half2, na.rm=TRUE),
+            avg_ot_tr_first_timeout = mean(first_timeout_Overtime, na.rm=TRUE),
+            avg_ot_tr_last_timeout = mean(last_timeout_Overtime, na.rm=TRUE)) %>% 
+  mutate_if(is.numeric, round, 1)
+
+# combine
 total_coaching <- coaching_win_loss %>% 
-  
   left_join(., coaching_win_loss_home_away, by='coach') %>% 
   left_join(., coaching_3rd_down, by='coach') %>% 
-  left_join(., coaching_4th_down, by='coach')
+  left_join(., coaching_4th_down, by='coach') %>% 
+  left_join(., timeout_data, by='coach')
+
+# coach_ppg_range <- range(c(total_coaching$ppg, 
+#                            total_coaching$ppg_allowed), na.rm=TRUE)
+# 
+# coach_team_dictionary <- coaching_dictionary %>% 
+#   group_by(coach) %>%
+#   arrange(desc(stint_start)) %>%
+#   slice(1) %>% 
+#   left_join(., load_teams(), by=c('team' = 'team_abbr'))
+# 
+# total_coaching %>%
+#   left_join(., coach_team_dictionary, by='coach') %>% 
+#   ggplot() +
+#   geom_point(aes(x = ppg, y = ppg_allowed, 
+#              size=total_win_pct), color=coach_team_dictionary$team_color, 
+#              alpha=0.6) + 
+#   geom_hline(yintercept = mean(total_coaching$ppg_allowed), 
+#              color = "red", linetype = "dashed", alpha=0.5) +
+#   geom_vline(xintercept =  mean(total_coaching$ppg), 
+#              color = "red", linetype = "dashed", alpha=0.5) +
+#   ggrepel::geom_text_repel(aes(x = ppg, y = ppg_allowed, label=coach), size=2) +
+#   #stat_smooth(aes(x = ppg_allowed, y = ppg), geom='line', alpha=0.5, se=FALSE, method='lm') +
+#   coord_fixed(ratio = 1,
+#               xlim = c(5, 35), 
+#               ylim = c(37, 15)) +
+#   labs(x = "Points Per Game",
+#        y = "Opponent Points Per Game",
+#        title = "Coach PPG",
+#        size = "Win Percentage")
+
+# Create File Path
+folder_path <- file.path("data", "processed", "coaches")
+
+if (!file.exists(folder_path)) {
+  dir.create(folder_path)
+}
+
+# Save Data
+data.table::fwrite(total_coaching, file.path(folder_path, 
+                                           "processed_coaching_data.csv"),
+                   row.names = FALSE)
+
+# Cleanup
+rm(away_data)
+rm(coach_team_dictionary)
+rm(coach_total_data)
+rm(coaching_3rd_down)
+rm(coaching_4th_down)
+rm(coaching_aggregation_win_loss)
+rm(coaching_dictionary)
+rm(coaching_game_aggregation)
+rm(coaching_passing_aggregation)
+rm(coaching_win_loss)
+rm(coaching_win_loss_home_away)
+rm(home_data)
+rm(timeout_data)
+rm(total_coaching)
+gc()
+
+################################################################################
+# Process Play-by-Play Data
+################################################################################
 
 
-coach_ppg_range <- range(c(total_coaching$ppg, 
-                           total_coaching$ppg_allowed), na.rm=TRUE)
-
-coach_team_dictionary <- coaching_dictionary %>% 
-  group_by(coach) %>%
-  arrange(desc(stint_start)) %>%
-  slice(1) %>% 
-  left_join(., load_teams(), by=c('team' = 'team_abbr'))
-
-total_coaching %>%
-  left_join(., coach_team_dictionary, by='coach') %>% 
-  ggplot() +
-  geom_point(aes(x = ppg, y = ppg_allowed, 
-             size=total_win_pct), color=coach_team_dictionary$team_color, 
-             alpha=0.6) + 
-  geom_hline(yintercept = mean(total_coaching$ppg_allowed), 
-             color = "red", linetype = "dashed", alpha=0.5) +
-  geom_vline(xintercept =  mean(total_coaching$ppg), 
-             color = "red", linetype = "dashed", alpha=0.5) +
-  ggrepel::geom_text_repel(aes(x = ppg, y = ppg_allowed, label=coach), size=2) +
-  #stat_smooth(aes(x = ppg_allowed, y = ppg), geom='line', alpha=0.5, se=FALSE, method='lm') +
-  coord_fixed(ratio = 1,
-              xlim = c(5, 35), 
-              ylim = c(37, 15)) +
-  labs(x = "Points Per Game",
-       y = "Opponent Points Per Game",
-       title = "Coach PPG",
-       size = "Win Percentage")
 
 
 
