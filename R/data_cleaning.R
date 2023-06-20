@@ -335,7 +335,40 @@ gc()
 # Process Play-by-Play Data
 ################################################################################
 
+# I need play by play where the id column is the game clock and possession team
+# Home and away teams will have accumulating variables like n_sack_home, n_sack_away
 
-
+defense <- pbp_data %>% 
+  filter(!(desc %in% c('GAME', 'END QUARTER 1', 'Two-Minute Warning', 'END QUARTER 2',
+                     'END QUARTER 3', 'END GAME'))) %>% 
+  dplyr::select(game_id, week, home_team, away_team, defteam, time, quarter_seconds_remaining,
+                half_seconds_remaining, game_seconds_remaining, qtr, game_half, 
+                yrdln, down, goal_to_go, play_type, yards_gained,
+                home_timeouts_remaining, away_timeouts_remaining, posteam_score,
+                defteam_score, third_down_failed, fourth_down_failed, incomplete_pass, interception,
+                fumble_forced, fumble_lost, solo_tackle, safety, tackled_for_loss,
+                qb_hit, sack) %>% 
+  # Add score for defense
+  mutate(defense_lead = ifelse(defteam_score > posteam_score,
+                               1,
+                               0),
+         post_2min_warning = ifelse(half_seconds_remaining <= 120,
+                                    1,
+                                    0)) %>% 
+  mutate(across(where(is.numeric), ~ replace(., is.na(.), 0))) %>% 
+  group_by(game_id, defteam) %>% 
+  mutate(n_interception = cumsum(interception),
+         n_fumble_forced = cumsum(fumble_forced),
+         n_fumbled_recovered = cumsum(fumble_lost),
+         n_incomplete_pass = cumsum(incomplete_pass),
+         n_solo_tackle = cumsum(solo_tackle),
+         n_tackled_for_loss = cumsum(tackled_for_loss),
+         n_qb_hit = cumsum(qb_hit),
+         n_sack = cumsum(sack),
+         n_third_down_stopped = cumsum(third_down_failed),
+         n_fourth_down_stopped = cumsum(fourth_down_failed)) %>% 
+  dplyr::select(game_id, week, defteam, time, n_interception, n_incomplete_pass,
+                n_solo_tackle, n_tackled_for_loss, n_qb_hit, n_sack, n_fumble_forced,
+                n_fumbled_recovered, n_third_down_stopped, n_fourth_down_stopped)
 
 
