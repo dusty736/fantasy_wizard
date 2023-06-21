@@ -86,9 +86,6 @@ for (i in seq_along(tables)) {
   table_df <- table_html %>%
     html_table(fill = TRUE) %>% 
     data.frame()
-  
-  
-  
 }
 
 
