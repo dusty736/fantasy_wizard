@@ -23,7 +23,7 @@ pbp_vars <- c("play_id", "game_id", "old_game_id", "home_team", "away_team",
               "side_of_field", "yardline_100", "quarter_seconds_remaining", 
               "half_seconds_remaining", "game_seconds_remaining", "game_half",
               "quarter_end", "drive", "qtr", "down", "goal_to_go", "time",
-              "ydstogo", "play_type", "yards_gained", "shotgun", "no_huddle",
+              "ydstogo", "play_type", "yards_gained", "first_down", "shotgun", "no_huddle",
               "qb_dropback", "qb_kneel", "qb_spike", "qb_scramble", 
               "pass_length", "pass_location", "air_yards", "yards_after_catch",
               "run_location", "run_gap", "field_goal_result", "kick_distance",
@@ -48,7 +48,7 @@ pbp_vars <- c("play_id", "game_id", "old_game_id", "home_team", "away_team",
 
 # Load data
 pbp_data <- data.table::fread("data/raw/pbp/pbp_raw_data.csv",
-                     stringsAsFactors=FALSE, nrows = 1000) %>% 
+                     stringsAsFactors=FALSE) %>% 
   dplyr::select(pbp_vars)
 
 # Get game data
@@ -103,7 +103,7 @@ away_data <- pbp_data %>%
          team = away_team,
          opposing_team = home_team) %>% 
   dplyr::select(season, week, game_id, coach, home_away, team, opposing_team, yardline_100, half_seconds_remaining,
-                game_seconds_remaining, down, goal_to_go, ydstogo, play_type, yards_gained,
+                game_seconds_remaining, down, goal_to_go, ydstogo, first_down, play_type, yards_gained,
                 shotgun, qb_dropback, qb_scramble, pass_length, pass_location, air_yards,
                 yards_after_catch, run_location, run_gap, first_down_pass, first_down_rush,
                 first_down_penalty, third_down_converted, third_down_failed, fourth_down_converted,
@@ -121,7 +121,7 @@ home_data <- pbp_data %>%
          team = home_team,
          opposing_team = away_team) %>% 
   dplyr::select(season, week, game_id, coach, home_away, team, opposing_team, yardline_100, half_seconds_remaining,
-                game_seconds_remaining, down, goal_to_go, ydstogo, play_type, yards_gained,
+                game_seconds_remaining, down, goal_to_go, ydstogo, first_down, play_type, yards_gained,
                 shotgun, qb_dropback, qb_scramble, pass_length, pass_location, air_yards,
                 yards_after_catch, run_location, run_gap, first_down_pass, first_down_rush,
                 first_down_penalty, third_down_converted, third_down_failed, fourth_down_converted,
@@ -131,49 +131,72 @@ home_data <- pbp_data %>%
 
 coach_total_data <- rbind(away_data, home_data)
 
+# Early down
+coaching_early_down <- coach_total_data %>% 
+  filter(down %in% 1:2) %>% 
+  group_by(coach, home_away) %>% 
+  summarize(pct_early_down_pass = sum(play_type == 'pass', na.rm=TRUE) / n(),
+         pct_early_down_rush = sum(play_type == 'run', na.rm=TRUE) / n(),
+         pct_early_down_deep_pass = sum(play_type == 'pass' & pass_length == 'deep', na.rm=TRUE) / n(),
+         pct_early_down_short_pass = sum(play_type == 'pass' & pass_length == 'short', na.rm=TRUE) / n(),
+         total_yrds_gained_early_down = mean(yards_gained, na.rm=TRUE),
+         early_down_conversion_rate = sum(first_down, na.rm=TRUE) / n()) %>% 
+  mutate_if(is.numeric, round, 3) %>% 
+  pivot_wider(names_from = home_away, values_from = c(pct_early_down_pass, 
+                                                      pct_early_down_rush,
+                                                      pct_early_down_deep_pass, 
+                                                      pct_early_down_short_pass,
+                                                      total_yrds_gained_early_down, 
+                                                      total_early_down_conversion_rate), 
+              names_sep = "_")
+
 # Get 3rd down coaching data
 coaching_3rd_down <- coach_total_data %>% 
   filter(down == 3) %>% 
-  group_by(coach, home_away, week, season) %>% 
-  mutate(n_3rd_down = n(),
-         n_3rd_down_pass = sum(play_type == 'pass', na.rm=TRUE),
-         n_3rd_down_rush = sum(play_type == 'run', na.rm=TRUE),
-         pct_3rd_down_deep_pass = sum(play_type == 'pass' & pass_length == 'deep', na.rm=TRUE) / n(),
-         total_yrds_to_go_3rd_down = mean(ydstogo, na.rm=TRUE),
-         total_3rd_down_conversion_rate = sum(third_down_converted, na.rm=TRUE) / n(),
-         total_3rd_down_failed = sum(third_down_failed, na.rm=TRUE)) %>% 
   group_by(coach, home_away) %>% 
-  summarize(mean_n_3rd_down = mean(n_3rd_down),
-            mean_pass_rate_3rd_down = mean(n_3rd_down_pass / n_3rd_down),
-            mean_pct_3rd_down_deep_pass = mean(pct_3rd_down_deep_pass),
-            mean_3rd_down_conversion_rate = mean(total_3rd_down_conversion_rate),
-            to_go_3rd_down = mean(ydstogo, na.rm=TRUE)) %>% 
+  summarize(to_go_third_down = mean(ydstogo, na.rm=TRUE),
+         pct_third_down_pass = sum(play_type == 'pass', na.rm=TRUE) / n(),
+         pct_third_down_rush = sum(play_type == 'run', na.rm=TRUE) / n(),
+         pct_third_down_deep_pass = sum(play_type == 'pass' & pass_length == 'deep', na.rm=TRUE) / n(),
+         pct_third_down_short_pass = sum(play_type == 'pass' & pass_length == 'short', na.rm=TRUE) / n(),
+         mean_yrds_gained_third_down = mean(yards_gained, na.rm=TRUE),
+         third_down_conversion_rate = sum(first_down, na.rm=TRUE) / n(),
+         third_down_failed_rate = mean(third_down_failed, na.rm=TRUE)) %>% 
   mutate_if(is.numeric, round, 3) %>% 
-  pivot_wider(names_from = home_away, values_from = c(mean_n_3rd_down, mean_pass_rate_3rd_down,
-                                                      mean_pct_3rd_down_deep_pass, mean_3rd_down_conversion_rate,
-                                                      to_go_3rd_down), names_sep = "_")
+  pivot_wider(names_from = home_away, values_from = c(to_go_third_down, 
+                                                      pct_third_down_pass,
+                                                      pct_third_down_rush, 
+                                                      pct_third_down_deep_pass,
+                                                      pct_third_down_short_pass,
+                                                      mean_yrds_gained_third_down,
+                                                      third_down_conversion_rate,
+                                                      third_down_failed_rate), 
+              names_sep = "_")
 
 # Get 4th down coaching data
 coaching_4th_down <- coach_total_data %>% 
   filter(down == 4) %>% 
-  group_by(coach, home_away, week, season) %>% 
-  mutate(n_4th_down = n(),
-         n_4th_down_pass = sum(play_type == 'pass', na.rm=TRUE),
-         n_4th_down_rush = sum(play_type == 'run', na.rm=TRUE),
-         pct_4th_down_deep_pass = sum(play_type == 'pass' & pass_length == 'deep', na.rm=TRUE) / n(),
-         total_yrds_to_go_4th_down = mean(ydstogo, na.rm=TRUE),
-         total_4th_down_conversion_rate = sum(fourth_down_converted, na.rm=TRUE) / n(),
-         total_4th_down_failed = sum(fourth_down_failed, na.rm=TRUE)) %>% 
   group_by(coach, home_away) %>% 
-  summarize(mean_n_4th_down = mean(n_4th_down),
-            mean_pass_rate_4th_down = mean(n_4th_down_pass / n_4th_down),
-            mean_pct_4th_down_deep_pass = mean(pct_4th_down_deep_pass),
-            mean_4th_down_conversion_rate = mean(total_4th_down_conversion_rate),
-            to_go_4th_down = mean(ydstogo, na.rm=TRUE)) %>% 
+  summarize(to_go_fourth_down = mean(ydstogo, na.rm=TRUE),
+            pct_fourth_down_pass = sum(play_type == 'pass', na.rm=TRUE) / n(),
+            pct_fourth_down_rush = sum(play_type == 'run', na.rm=TRUE) / n(),
+            pct_fourth_down_deep_pass = sum(play_type == 'pass' & pass_length == 'deep', na.rm=TRUE) / n(),
+            pct_fourth_down_short_pass = sum(play_type == 'pass' & pass_length == 'short', na.rm=TRUE) / n(),
+            mean_yrds_gained_fourth_down = mean(yards_gained, na.rm=TRUE),
+            fourth_down_conversion_rate = sum(first_down, na.rm=TRUE) / n(),
+            fourth_down_failed_rate = mean(third_down_failed, na.rm=TRUE)) %>% 
   mutate_if(is.numeric, round, 3) %>% 
-  pivot_wider(names_from = home_away, values_from = c(mean_n_4th_down, mean_pass_rate_4th_down,
-                                                      mean_pct_4th_down_deep_pass, mean_4th_down_conversion_rate,
-                                                      to_go_4th_down), names_sep = "_")
+  pivot_wider(names_from = home_away, values_from = c(to_go_fourth_down, 
+                                                      pct_fourth_down_pass,
+                                                      pct_fourth_down_rush, 
+                                                      pct_fourth_down_deep_pass,
+                                                      pct_fourth_down_short_pass,
+                                                      mean_yrds_gained_fourth_down,
+                                                      fourth_down_conversion_rate,
+                                                      fourth_down_failed_rate), 
+              names_sep = "_")
+
+
   
 # Get game-wise data
 coaching_game_aggregation <- coach_total_data %>% 
@@ -367,7 +390,7 @@ defense <- pbp_data %>%
          n_sack = cumsum(sack),
          n_third_down_stopped = cumsum(third_down_failed),
          n_fourth_down_stopped = cumsum(fourth_down_failed)) %>% 
-  dplyr::select(game_id, week, defteam, time, qrt, n_interception, n_incomplete_pass,
+  dplyr::select(game_id, week, defteam, time, qtr, n_interception, n_incomplete_pass,
                 n_solo_tackle, n_tackled_for_loss, n_qb_hit, n_sack, n_fumble_forced,
                 n_fumbled_recovered, n_third_down_stopped, n_fourth_down_stopped)
 
@@ -491,7 +514,9 @@ offense <- pbp_data %>%
                 n_drive_yards_penalized) %>% 
   mutate_if(is.numeric, round, 2)
 
-
+# combine
+pbp_eng <- offense %>% 
+  left_join(., defense, by=c('game_id', 'time', 'qtr'))
 
 
 
