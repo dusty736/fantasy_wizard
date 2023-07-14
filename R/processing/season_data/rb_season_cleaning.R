@@ -151,5 +151,5 @@ season_training_data <- do.call(rbind, rb_stat_lst)
 ################################################################################
 # Save Results
 ################################################################################
-saveRDS(rb_output, "data/processed/season/rb_season_stat_modeling_data.rds")
+data.table::fwrite(rb_output, "data/processed/season/rb_season_stat_modeling_data.csv")
 
