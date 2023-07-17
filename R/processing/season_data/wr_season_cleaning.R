@@ -34,9 +34,16 @@ for (s in seasons) {
   current_season <- s
   next_season <- s + 1
   
+  # Get game count
+  games_per_season <- ifelse(current_season < 2021, 16, 17)
+  
   # Set IDs
   current_season_ids <- player_data %>% 
     filter(season == s) %>% 
+    group_by(player_id) %>% 
+    summarize(n = n()) %>% 
+    ungroup(.) %>% 
+    filter(n >= games_per_season - 2) %>% 
     pull(player_id) %>% 
     unique()
   
@@ -48,7 +55,7 @@ for (s in seasons) {
   # Get targets
   wr_target_stats <- player_data %>% 
     filter(position == 'WR') %>% 
-    filter(player_id %in% next_season_ids) %>% 
+    filter(player_id %in% current_season_ids & player_id %in% next_season_ids) %>% 
     filter(season == next_season) %>% 
     group_by(player_id, player_display_name) %>% 
     summarize(target_carries = sum(carries, na.rm=TRUE),
@@ -65,7 +72,7 @@ for (s in seasons) {
   # Get career stats up to target season
   wr_cumulative_career_stats <- player_data %>% 
     filter(position == 'WR') %>% 
-    filter(player_id %in% next_season_ids) %>% 
+    filter(player_id %in% current_season_ids & player_id %in% next_season_ids) %>% 
     filter(season <= current_season) %>% 
     group_by(player_id, player_display_name) %>% 
     summarize(games_played = n(),
@@ -98,7 +105,7 @@ for (s in seasons) {
   # Get stats of previous season
   wr_season_stats <- player_data %>% 
     filter(position == 'WR') %>% 
-    filter(player_id %in% next_season_ids) %>% 
+    filter(player_id %in% current_season_ids & player_id %in% next_season_ids) %>% 
     filter(season == current_season) %>% 
     group_by(player_id, player_display_name) %>% 
     summarize(prev_season_games_played = n(),
