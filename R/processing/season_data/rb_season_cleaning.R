@@ -20,6 +20,12 @@ if (!file.exists(file.path("data", "processed", "season"))) {
 player_data <- data.table::fread("data/raw/player_stats/raw_player_stats.csv",
                               stringsAsFactors=FALSE)
 
+################################################################################
+# Limit Data
+################################################################################
+
+player_data <- player_data %>% 
+  filter(season_type == 'REG')
 
 ################################################################################
 # Generalize
@@ -34,21 +40,32 @@ for (s in seasons) {
   current_season <- s
   next_season <- s + 1
   
+  # Get game count
+  games_per_season <- ifelse(current_season < 2021, 16, 17)
+  
   # Set IDs
   current_season_ids <- player_data %>% 
     filter(season == s) %>% 
+    group_by(player_id) %>% 
+    summarize(n = n()) %>% 
+    ungroup(.) %>% 
+    filter(n >= games_per_season - 4) %>% 
     pull(player_id) %>% 
     unique()
   
   next_season_ids <- player_data %>% 
     filter(season == s + 1) %>% 
+    group_by(player_id) %>% 
+    summarize(n = n()) %>% 
+    ungroup(.) %>% 
+    filter(n >= games_per_season - 4) %>% 
     pull(player_id) %>% 
     unique()
   
   # Get targets
   rb_target_stats <- player_data %>% 
     filter(position == 'RB') %>% 
-    filter(player_id %in% next_season_ids) %>% 
+    filter(player_id %in% current_season_ids & player_id %in% next_season_ids) %>% 
     filter(season == next_season) %>% 
     group_by(player_id, player_display_name) %>% 
     summarize(target_carries = sum(carries, na.rm=TRUE),
@@ -65,7 +82,7 @@ for (s in seasons) {
   # Get career stats up to target season
   rb_cumulative_career_stats <- player_data %>% 
     filter(position == 'RB') %>% 
-    filter(player_id %in% next_season_ids) %>% 
+    filter(player_id %in% current_season_ids & player_id %in% next_season_ids) %>% 
     filter(season <= current_season) %>% 
     group_by(player_id, player_display_name) %>% 
     summarize(games_played = n(),
@@ -98,7 +115,7 @@ for (s in seasons) {
   # Get stats of previous season
   rb_season_stats <- player_data %>% 
     filter(position == 'RB') %>% 
-    filter(player_id %in% next_season_ids) %>% 
+    filter(player_id %in% current_season_ids & player_id %in% next_season_ids) %>% 
     filter(season == current_season) %>% 
     group_by(player_id, player_display_name) %>% 
     summarize(prev_season_games_played = n(),
@@ -151,5 +168,5 @@ season_training_data <- do.call(rbind, rb_stat_lst)
 ################################################################################
 # Save Results
 ################################################################################
-data.table::fwrite(rb_output, "data/processed/season/rb_season_stat_modeling_data.csv")
+data.table::fwrite(season_training_data, "data/processed/season/rb_season_stat_modeling_data.csv")
 
