@@ -82,7 +82,10 @@ rb_df <- rb_carries %>%
   left_join(., rb_rec_yd, by=c('player_id', 'player_display_name')) %>% 
   left_join(., rb_rec_td, by=c('player_id', 'player_display_name')) %>% 
   mutate(position = 'RB') %>% 
-  dplyr::select(player_id, player_display_name, position, everything())
+  mutate(ff_points = 0.1 * (mean_target_rushing_yd + mean_target_receiving_yd) + 6 * (mean_target_rushing_td + mean_target_receiving_td) + 0.5 * mean_target_receptions,
+         ff_lower = 0.1 * (ci_l_target_rushing_yd + ci_l_target_receiving_yd) + 6 * (ci_l_target_rushing_td + ci_l_target_receiving_td) + 0.5 * ci_l_target_receptions,
+         ff_upper = 0.1 * (ci_u_target_rushing_yd + ci_u_target_receiving_yd) + 6 * (ci_u_target_rushing_td + ci_u_target_receiving_td) + 0.5 * ci_u_target_receptions) %>% 
+  dplyr::select(player_id, player_display_name, position, ff_points, ff_lower, ff_upper, everything())
 
 wr_df <- wr_carries %>% 
   left_join(., wr_rush_yd, by=c('player_id', 'player_display_name')) %>% 
@@ -91,28 +94,22 @@ wr_df <- wr_carries %>%
   left_join(., wr_rec_yd, by=c('player_id', 'player_display_name')) %>% 
   left_join(., wr_rec_td, by=c('player_id', 'player_display_name')) %>% 
   mutate(position = 'WR') %>% 
-  dplyr::select(player_id, player_display_name, position, everything())
-
-te_df <- te_carries %>%
-  left_join(., te_rec_tot, by=c('player_id', 'player_display_name')) %>% 
-  left_join(., te_rec_yd, by=c('player_id', 'player_display_name')) %>% 
-  left_join(., te_rec_td, by=c('player_id', 'player_display_name')) %>% 
-  mutate(position = 'TE') %>% 
-  dplyr::select(player_id, player_display_name, position, everything())
-
-total_df <- rbind(rb_df, wr_df, te_df)
-
-################################################################################
-# Create 0.5 Point PPR Score
-################################################################################
-  
-# Formula: (0.1 * total yards) + (6 * total td) + (0.5 * rec total)
-
-total_df <- total_df %>% 
   mutate(ff_points = 0.1 * (mean_target_rushing_yd + mean_target_receiving_yd) + 6 * (mean_target_rushing_td + mean_target_receiving_td) + 0.5 * mean_target_receptions,
          ff_lower = 0.1 * (ci_l_target_rushing_yd + ci_l_target_receiving_yd) + 6 * (ci_l_target_rushing_td + ci_l_target_receiving_td) + 0.5 * ci_l_target_receptions,
          ff_upper = 0.1 * (ci_u_target_rushing_yd + ci_u_target_receiving_yd) + 6 * (ci_u_target_rushing_td + ci_u_target_receiving_td) + 0.5 * ci_u_target_receptions) %>% 
   dplyr::select(player_id, player_display_name, position, ff_points, ff_lower, ff_upper, everything())
+  
+
+te_df <- te_rec_tot %>%
+  left_join(., te_rec_yd, by=c('player_id', 'player_display_name')) %>% 
+  left_join(., te_rec_td, by=c('player_id', 'player_display_name')) %>% 
+  mutate(position = 'TE') %>% 
+  mutate(ff_points = 0.1 * (mean_target_receiving_yd) + 6 * (mean_target_receiving_td) + 0.5 * mean_target_receptions,
+         ff_lower = 0.1 * (ci_l_target_receiving_yd) + 6 * (ci_l_target_receiving_td) + 0.5 * ci_l_target_receptions,
+         ff_upper = 0.1 * (ci_u_target_receiving_yd) + 6 * (ci_u_target_receiving_td) + 0.5 * ci_u_target_receptions) %>% 
+  dplyr::select(player_id, player_display_name, position, ff_points, ff_lower, ff_upper, everything())
+
+total_df <- plyr::rbind.fill(rb_df, wr_df, te_df)
 
 ################################################################################
 # Save
