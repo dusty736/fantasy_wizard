@@ -8,6 +8,8 @@ library(caret)
 library(boot)
 options(dplyr.summarise.inform = FALSE)
 
+source("R/modeling/helper_functions.R")
+
 ################################################################################
 # Load Data
 ################################################################################
@@ -62,7 +64,6 @@ X_external <- predict(preprocess_steps, external_data)
 # Create datesets
 train_data <- cbind(X_train_processed, y_train)
 test_data <- cbind(X_test_processed, y_test)
-
 
 # Create formula
 formula_str <- paste("target_rushing_yd ~", paste0(numeric_cols, collapse = " + "))
@@ -168,97 +169,16 @@ external_prediction_df <- cbind(external_data[c('player_id', 'player_display_nam
 # Use Bootstrapping to Create Prediction CI
 ################################################################################
 
-model_train <- function(n_boot, 
-                        train, 
-                        process_func, 
-                        train_split_prop, 
-                        lm_formula, 
-                        n_cv, 
-                        pred_ppt, 
-                        target_col_regex) {
-  
-  boot_list <- list()
-  
-  for (i in 1:n_boot) {
-    # Resample
-    set.seed(i)
-    resamp_ind <- sample(1:nrow(train), size = nrow(train), replace = TRUE)
-    train_tmp <- train[resamp_ind, ]
-    
-    # Create indices of split
-    set.seed(i)
-    train_indices <- sample(nrow(train_tmp), nrow(train_tmp) * train_split_prop)
-    
-    # Separate out train data
-    X <- train_tmp[train_indices, ] %>% 
-      dplyr::select(-matches("^target")) %>% 
-      data.frame()
-    
-    y <- train_tmp[train_indices, ] %>% 
-      dplyr::select(matches(target_col_regex)) %>% 
-      data.frame()
-    
-    # Preprocess
-    X <- predict(process_func,  X)
-    pred_ppt_tmp <- predict(process_func,  pred_ppt)
-    
-    # Recombine
-    Xy_data <- cbind(X, y)
-    
-    # Create CV Folds
-    cv_folds <- caret::trainControl(method = "cv",
-                                    number = n_cv, 
-                                    savePredictions = FALSE)
-    
-    # Create LM
-    m <- caret::train(formula, 
-                      data = Xy_data, 
-                      method = "lm", 
-                      trControl = cv_folds)
-    
-    # Create Test Predictions
-    preds <- data.frame(predict(m$finalModel, pred_ppt_tmp, interval = 'prediction')) %>% 
-      mutate(boot = i)
-    
-    # Add Player Identifiers
-    preds <- cbind(pred_ppt_tmp[c('player_id', 'player_display_name')],
-                   preds)
-    
-    # Combine
-    # add to list
-    if (length(boot_list) == 0) {
-      boot_list <- list(preds)
-    } else {
-      boot_list <- c(boot_list, list(preds))
-    }
-  }
-  
-  # Combine into dataframe
-  pred_df <- do.call(rbind, boot_list)
-  
-  # Aggregate to player
-  player_est <- pred_df %>% 
-    mutate(fit = ifelse(fit < 0, 0, fit),
-           var = target_col_regex) %>% 
-    group_by(player_id, player_display_name, var) %>% 
-    summarize(mean = median(fit),
-              ci_l = quantile(fit, 0.05),
-              ci_u = quantile(fit, 0.95)) %>% 
-    ungroup(.)
-  
-  
-  return(player_est)
-}
-
 # Create Bootstrapped Predictions
 player_df <- model_train(n_boot=100, 
                     train=modeling_data, 
                     process_func=preprocess_steps, 
                     train_split_prop=0.8, 
+                    regression_model='lm',
                     lm_formula=formula, 
                     n_cv=10, 
                     pred_ppt=external_data,
-                    "target_rushing_yd")
+                    target_col_regex="target_rushing_yd")
 
 # Save
 data.table::fwrite(player_df, "data/results/RB/exp_r_yrd_2023.csv")
