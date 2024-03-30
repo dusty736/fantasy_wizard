@@ -49,8 +49,7 @@ pbp_vars <- c("play_id", "game_id", "old_game_id", "home_team", "away_team",
 # Load data
 pbp_data <- data.table::fread("data/raw/pbp/pbp_raw_data.csv",
                      stringsAsFactors=FALSE) %>% 
-  dplyr::select(pbp_vars) %>% 
-  filter(season_type == 'REG')
+  dplyr::select(pbp_vars)
 
 # Get game data
 game_vars <- c("game_id", "old_game_id", "week", "home_team", "away_team",
@@ -311,6 +310,116 @@ data.table::fwrite(season_data, file.path(folder_path,
 # Save Data
 data.table::fwrite(season_rankings, file.path(folder_path, 
                                           'season_rankings.csv'),
+                   row.names = FALSE)
+
+################################################################################
+# Create strength of schedule
+################################################################################
+
+season_schedules <- nflfastR::fast_scraper_schedules() %>% 
+  dplyr::select(season, game_id, game_type, away_team, home_team, away_qb_name, home_qb_name, away_coach, home_coach) %>% 
+  pivot_longer(., cols=c(away_team, home_team), names_to='home_away', values_to='team') %>% 
+  mutate(opposing_team = ifelse(home_away == 'home_team',
+                                str_split(game_id, "_", simplify = TRUE)[, 3],
+                                str_split(game_id, "_", simplify = TRUE)[, 4]),
+         season = as.character(season),
+         qb = ifelse(home_away == 'home_team',
+                     home_qb_name,
+                     away_qb_name),
+         coach = ifelse(home_away == 'home_team',
+                     home_coach,
+                     away_coach),
+         team = ifelse(team == 'STL',
+                       'LA',
+                       ifelse(team == 'SD',
+                              'LAC',
+                              ifelse(team == 'OAK',
+                                     'LV',
+                                     team))),
+         opposing_team = ifelse(opposing_team == 'STL',
+                       'LA',
+                       ifelse(opposing_team == 'SD',
+                              'LAC',
+                              ifelse(opposing_team == 'OAK',
+                                     'LV',
+                                     opposing_team)))) %>% 
+  group_by(season, team) %>% 
+  mutate(n_game = n(),
+           postseason = n_distinct(game_type) > 1,
+           n_qb = n_distinct(qb),
+           n_coach = n_distinct(coach)) %>% 
+  dplyr::select(season, team, opposing_team, qb, coach, n_game, postseason, n_qb, n_coach)
+
+# Add season rankings
+season_rankings_opposing <- season_rankings %>% 
+  rename(opposing_team = team)
+
+season_schedules_opp <- season_schedules %>% 
+  left_join(., season_rankings_opposing, by=c('season', 'opposing_team')) %>% 
+  group_by(team, season) %>% 
+  summarize(n_qb = n_distinct(qb),
+            n_coach = n_distinct(coach),
+            opp_def_pwrk_rush_ypg_rank = mean(def_rush_ypg_rank),
+            opp_def_pwrk_rush_td_rank = mean(def_rush_td_rank),
+            opp_def_pwrk_pass_ypg_rank = mean(def_pass_ypg_rank),
+            opp_def_pwrk_pass_td_rank = mean(def_pass_td_rank)) %>% 
+  group_by(season) %>% 
+  mutate(opp_def_pwrk_rush_ypg_rank = rank(opp_def_pwrk_rush_ypg_rank),
+         opp_def_pwrk_rush_td_rank = rank(opp_def_pwrk_rush_td_rank),
+         opp_def_pwrk_pass_ypg_rank = rank(opp_def_pwrk_pass_ypg_rank),
+         opp_def_pwrk_pass_td_rank = rank(opp_def_pwrk_pass_td_rank))
+
+season_schedules_team <- season_schedules %>% 
+  left_join(., season_rankings, by=c('season', 'team')) %>% 
+  group_by(team, season) %>% 
+  summarize(team_off_pwrk_rush_ypg_rank = mean(off_rush_ypg_rank),
+            team_off_pwrk_rush_td_rank = mean(off_rush_td_rank),
+            team_off_pwrk_pass_ypg_rank = mean(off_pass_ypg_rank),
+            team_off_pwrk_pass_td_rank = mean(off_pass_td_rank)) %>% 
+  group_by(season) %>% 
+  mutate(team_off_pwrk_rush_ypg_rank = rank(team_off_pwrk_rush_ypg_rank),
+         team_off_pwrk_rush_td_rank = rank(team_off_pwrk_rush_td_rank),
+         team_off_pwrk_pass_ypg_rank = rank(team_off_pwrk_pass_ypg_rank),
+         team_off_pwrk_pass_td_rank = rank(team_off_pwrk_pass_td_rank))
+
+season_schedules_total <- season_schedules_team %>% 
+  left_join(., season_schedules_opp, by=c('season', 'team'))
+
+# Create File Path
+folder_path <- file.path("data", "processed", "season")
+
+if (!file.exists(folder_path)) {
+  dir.create(folder_path)
+}
+
+# Save Data
+data.table::fwrite(season_data, file.path(folder_path, 
+                                          'season_pwr_rankings.csv'),
+                   row.names = FALSE)
+
+################################################################################
+# Process Rosters
+################################################################################
+
+rosters <- nflfastR::fast_scraper_roster(2000:2023) %>% 
+  mutate(draft_club = ifelse(is.na(draft_club),
+                             'UFA',
+                             draft_club)) %>% 
+  mutate(same_team = ifelse(draft_club == team,
+                            'same_teams',
+                            'moved_teams')) %>% 
+  dplyr::select(season, full_name, same_team, draft_number)
+
+# Create File Path
+folder_path <- file.path("data", "processed", "season")
+
+if (!file.exists(folder_path)) {
+  dir.create(folder_path)
+}
+
+# Save Data
+data.table::fwrite(rosters, file.path(folder_path, 
+                                          'roster_stats.csv'),
                    row.names = FALSE)
 
 ################################################################################
@@ -622,6 +731,9 @@ if (!file.exists(folder_path)) {
 # Save Data
 data.table::fwrite(total_coaching, file.path(folder_path, 
                                            "processed_coaching_data.csv"),
+                   row.names = FALSE)
+data.table::fwrite(coaching_dictionary, file.path(folder_path, 
+                                             "coaching_dictionary.csv"),
                    row.names = FALSE)
 
 # Cleanup

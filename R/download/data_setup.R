@@ -19,7 +19,7 @@ if (!file.exists(file.path("data", "raw"))) {
 ################################################################################
 
 # Set sesasons
-seasons <- 2012:2022
+seasons <- 2000:2023
 
 # Download data
 pbp_data <- nflfastR::load_pbp(seasons)
