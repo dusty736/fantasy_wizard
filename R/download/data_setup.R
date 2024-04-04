@@ -83,7 +83,7 @@ if (!file.exists(folder_path)) {
 }
 
 # Save Data
-data.table::fwrite(dc, file.path(folder_path, "injuries.csv"),
+data.table::fwrite(injuries, file.path(folder_path, "injuries.csv"),
                    row.names = FALSE)
 
 
@@ -126,6 +126,7 @@ data.table::fwrite(ngs, file.path(folder_path, "nextgen_stats.csv"),
 ################################################################################
 
 contracts <- progressr::with_progress(nflreadr::load_contracts())
+contracts <- apply(contracts,2,as.character)
 
 # Create File Path
 folder_path <- file.path("data", "raw", "contracts")
@@ -135,7 +136,7 @@ if (!file.exists(folder_path)) {
 }
 
 # Save Data
-data.table::fwrite(ngs, file.path(folder_path, "contracts.csv"),
+data.table::fwrite(data.frame(contracts), file.path(folder_path, "contracts.csv"),
                    row.names = FALSE)
 
 ################################################################################
@@ -155,3 +156,4 @@ if (!file.exists(folder_path)) {
 # Save Data
 data.table::fwrite(player_stats, file.path(folder_path, "raw_player_stats.csv"),
                    row.names = FALSE)
+

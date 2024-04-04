@@ -320,33 +320,33 @@ total_games_stats <- total_offense %>%
 
 season_stats <- total_games_stats %>% 
   group_by(team, season) %>% 
-  summarize(prev_season_win_pct = mean(result),
-            prev_season_off_ppg = mean(points_scored),
-            prev_season_off_plays_per_game = mean(n_play_offense),
-            prev_season_off_run_pct = mean(run_pct_offense),
-            prev_season_off_pass_pct = mean(pass_pct_offense),
-            prev_season_off_pypg = mean(n_pass_yards_offense),
-            prev_season_off_rypg = mean(n_rush_yards_offense),
-            prev_season_off_typg = mean(n_pass_yards_offense + n_rush_yards_offense),
-            prev_season_off_ptdpg = mean(n_pass_td_offense),
-            prev_season_off_rtdpg = mean(n_rush_td_offense),
-            prev_season_off_ttdpg = mean(n_pass_td_offense + n_rush_td_offense),
-            prev_season_off_fdpg = mean(n_first_down_offense),
-            prev_season_off_spg = mean(n_sack_offense),
-            prev_season_off_ipg = mean(n_interception_offense),
-            prev_season_def_ppg = mean(points_allowed),
-            prev_season_def_plays_per_game = mean(n_play_defense),
-            prev_season_def_run_pct = mean(run_pct_defense),
-            prev_season_def_pass_pct = mean(pass_pct_defense),
-            prev_season_def_pypg = mean(n_pass_yards_defense),
-            prev_season_def_rypg = mean(n_rush_yards_defense),
-            prev_season_def_typg = mean(n_pass_yards_defense + n_rush_yards_defense),
-            prev_season_def_ptdpg = mean(n_pass_td_defense),
-            prev_season_def_rtdpg = mean(n_rush_td_defense),
-            prev_season_def_ttdpg = mean(n_pass_td_defense + n_rush_td_defense),
-            prev_season_def_fdpg = mean(n_first_down_defense),
-            prev_season_def_spg = mean(n_sack_defense),
-            prev_season_def_ipg = mean(n_interception_defense)) %>% 
+  summarize(prev_season_win_pct = mean(result, na.rm=TRUE),
+            prev_season_off_ppg = mean(points_scored, na.rm=TRUE),
+            prev_season_off_plays_per_game = mean(n_play_offense, na.rm=TRUE),
+            prev_season_off_run_pct = mean(run_pct_offense, na.rm=TRUE),
+            prev_season_off_pass_pct = mean(pass_pct_offense, na.rm=TRUE),
+            prev_season_off_pypg = mean(n_pass_yards_offense, na.rm=TRUE),
+            prev_season_off_rypg = mean(n_rush_yards_offense, na.rm=TRUE),
+            prev_season_off_typg = mean(n_pass_yards_offense + n_rush_yards_offense, na.rm=TRUE),
+            prev_season_off_ptdpg = mean(n_pass_td_offense, na.rm=TRUE),
+            prev_season_off_rtdpg = mean(n_rush_td_offense, na.rm=TRUE),
+            prev_season_off_ttdpg = mean(n_pass_td_offense + n_rush_td_offense, na.rm=TRUE),
+            prev_season_off_fdpg = mean(n_first_down_offense, na.rm=TRUE),
+            prev_season_off_spg = mean(n_sack_offense, na.rm=TRUE),
+            prev_season_off_ipg = mean(n_interception_offense, na.rm=TRUE),
+            prev_season_def_ppg = mean(points_allowed, na.rm=TRUE),
+            prev_season_def_plays_per_game = mean(n_play_defense, na.rm=TRUE),
+            prev_season_def_run_pct = mean(run_pct_defense, na.rm=TRUE),
+            prev_season_def_pass_pct = mean(pass_pct_defense, na.rm=TRUE),
+            prev_season_def_pypg = mean(n_pass_yards_defense, na.rm=TRUE),
+            prev_season_def_rypg = mean(n_rush_yards_defense, na.rm=TRUE),
+            prev_season_def_typg = mean(n_pass_yards_defense + n_rush_yards_defense, na.rm=TRUE),
+            prev_season_def_ptdpg = mean(n_pass_td_defense, na.rm=TRUE),
+            prev_season_def_rtdpg = mean(n_rush_td_defense, na.rm=TRUE),
+            prev_season_def_ttdpg = mean(n_pass_td_defense + n_rush_td_defense, na.rm=TRUE),
+            prev_season_def_fdpg = mean(n_first_down_defense, na.rm=TRUE),
+            prev_season_def_spg = mean(n_sack_defense, na.rm=TRUE),
+            prev_season_def_ipg = mean(n_interception_defense, na.rm=TRUE)) %>% 
   mutate(prev_season = as.numeric(season))
 
 ################################################################################
@@ -358,21 +358,21 @@ window_size <- 4
 rolling_stats <- total_games_stats %>% 
   ungroup(.) %>% 
   arrange(team, season, week) %>% 
-  mutate(rolling_win_pct = lag(zoo::rollapplyr(result, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_ppg = lag(zoo::rollapplyr(points_scored, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_pypg = lag(zoo::rollapplyr(n_pass_yards_offense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_rypg = lag(zoo::rollapplyr(n_rush_yards_offense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_typg = lag(zoo::rollapplyr((n_pass_yards_offense + n_rush_yards_offense), width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_ptdpg = lag(zoo::rollapplyr(n_pass_td_offense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_rtdpg = lag(zoo::rollapplyr(n_rush_td_offense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_off_ttdpg = lag(zoo::rollapplyr((n_pass_td_offense + n_rush_td_offense), width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_ppg = lag(zoo::rollapplyr(points_allowed, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_pypg = lag(zoo::rollapplyr(n_pass_yards_defense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_rypg = lag(zoo::rollapplyr(n_rush_yards_defense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_typg = lag(zoo::rollapplyr((n_pass_yards_defense + n_rush_yards_defense), width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_ptdpg = lag(zoo::rollapplyr(n_pass_td_defense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_rtdpg = lag(zoo::rollapplyr(n_rush_td_defense, width = window_size, FUN = mean, fill = NA, align = "right")),
-         rolling_def_ttdpg = lag(zoo::rollapplyr((n_pass_td_defense + n_rush_td_defense), width = window_size, FUN = mean, fill = NA, align = "right")))
+  mutate(rolling_win_pct = lag(zoo::rollapplyr(result, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_ppg = lag(zoo::rollapplyr(points_scored, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_pypg = lag(zoo::rollapplyr(n_pass_yards_offense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_rypg = lag(zoo::rollapplyr(n_rush_yards_offense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_typg = lag(zoo::rollapplyr((n_pass_yards_offense + n_rush_yards_offense), width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_ptdpg = lag(zoo::rollapplyr(n_pass_td_offense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_rtdpg = lag(zoo::rollapplyr(n_rush_td_offense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_off_ttdpg = lag(zoo::rollapplyr((n_pass_td_offense + n_rush_td_offense), width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_ppg = lag(zoo::rollapplyr(points_allowed, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_pypg = lag(zoo::rollapplyr(n_pass_yards_defense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_rypg = lag(zoo::rollapplyr(n_rush_yards_defense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_typg = lag(zoo::rollapplyr((n_pass_yards_defense + n_rush_yards_defense), width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_ptdpg = lag(zoo::rollapplyr(n_pass_td_defense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_rtdpg = lag(zoo::rollapplyr(n_rush_td_defense, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_def_ttdpg = lag(zoo::rollapplyr((n_pass_td_defense + n_rush_td_defense), width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)))
 
 ################################################################################
 # Add prev season stats
@@ -400,7 +400,106 @@ modeling_game_vars_final <- modeling_game_vars %>%
          coach = ifelse(home_away == 'home', coach, opposing_coach),
          favored = ifelse(home_away == 'home', favored, !favored)) %>% 
   dplyr::select(game_id, season, week, team, home_away, points_scored, points_allowed,
-                qb, coach, favored, result, everything())
+                qb, coach, favored, result, everything()) %>% 
+  arrange(team, season, week) %>% 
+  ungroup(.)
+
+# Define Mode function for character columns
+Mode_Character <- function(x) {
+  non_na_values <- x[!is.na(x)]  # Exclude NA values
+  if (length(non_na_values) > 0) {
+    table_x <- table(non_na_values)
+    names(table_x)[which.max(table_x)]
+  } else {
+    NA  # Return NA if all values are NA
+  }
+}
+
+# Define Mode function for numeric columns
+Mode_Numeric <- function(x) {
+  non_na_values <- x[!is.na(x)]  # Exclude NA values
+  if (length(non_na_values) > 0) {
+    ux <- unique(non_na_values)
+    ux[which.max(tabulate(match(non_na_values, ux)))]
+  } else {
+    NA  # Return NA if all values are NA
+  }
+}
+
+# Example data frame: modeling_game_vars_final
+
+modeling_game_vars_final_filled <- modeling_game_vars_final %>%
+  group_by(team, season, week) %>%
+  mutate(across(where(is.character), ~replace(.x, is.na(.x), Mode_Character(.x))),
+         across(where(is.numeric), ~replace(.x, is.na(.x), Mode_Numeric(.x))))
+
+################################################################################
+# Add in Player Data
+################################################################################
+
+player_data <- data.table::fread("data/processed/games/player_data.csv") %>% 
+  mutate(team = ifelse(team == 'STL',
+                         'LA',
+                         ifelse(team == 'SD',
+                                'LAC',
+                                ifelse(team == 'OAK',
+                                       'LV',
+                                       team)))) %>% 
+  filter(position == 'QB' & game_type == 'REG' & depth_team == 1) %>% 
+  group_by(player, season, week) %>% 
+  mutate(max_start_year = max(starting_year)) %>% 
+  filter(starting_year == max_start_year) %>%
+  dplyr::select(-max_start_year) %>% 
+  ungroup(.) %>% 
+  rename(qb = player) %>% 
+  mutate(season = as.numeric(season),
+         week = as.numeric(week)) %>% 
+  arrange(team, season, week) %>% 
+  distinct() %>% 
+  group_by(team, season, week) %>% 
+  slice(1) %>% 
+  mutate(across(where(is.numeric), ~ifelse(is.nan(.x), NA, .x)),
+         across(where(is.character), ~ifelse(is.nan(.x), "", .x))) %>% 
+  filter(season >= 2016) %>% 
+  ungroup(.) %>% 
+  mutate(on_report = ifelse(!is.na(report_status) & report_status != '', 1, 0),
+         on_practice_report = ifelse(!is.na(practice_status) & practice_status != '', 1, 0)) %>% 
+         #rolling_avg_passer_rating = lag(zoo::rollapplyr(passer_rating, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE))) %>% 
+  mutate(rolling_avg_time_to_throw = lag(zoo::rollapplyr(avg_time_to_throw, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_completed_air_yards = lag(zoo::rollapplyr(avg_completed_air_yards, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_intended_air_yards = lag(zoo::rollapplyr(avg_intended_air_yards, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_air_yards_differential = lag(zoo::rollapplyr(avg_air_yards_differential, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_attempts = lag(zoo::rollapplyr(attempts, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_pass_yards = lag(zoo::rollapplyr(pass_yards, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_pass_touchdowns = lag(zoo::rollapplyr(pass_touchdowns, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_interceptions = lag(zoo::rollapplyr(interceptions, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_passer_rating = lag(zoo::rollapplyr(passer_rating, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_completions = lag(zoo::rollapplyr(completions, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_completion_percentage = lag(zoo::rollapplyr(completion_percentage, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_expected_completion_percentage = lag(zoo::rollapplyr(expected_completion_percentage, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_completion_percentage_above_expectation = lag(zoo::rollapplyr(completion_percentage_above_expectation, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_avg_air_distance = lag(zoo::rollapplyr(avg_air_distance, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_avg_max_air_distance = lag(zoo::rollapplyr(max_air_distance, width = window_size, FUN = mean, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_n_on_report = lag(zoo::rollapplyr(on_report, width = window_size, FUN = sum, fill = NA, align = "right", na.rm=TRUE)),
+         rolling_n_on_practice_report = lag(zoo::rollapplyr(on_practice_report, width = window_size, FUN = sum, fill = NA, align = "right", na.rm=TRUE))) %>% 
+  filter(!is.nan(rolling_avg_passer_rating)) %>% 
+  filter(!is.na(rolling_avg_passer_rating))
+
+blah <- player_data %>% 
+  group_by(qb, season, week, team) %>% 
+  summarize(n = n()) %>% 
+  arrange(team, season, week)
+
+modeling_game_vars_final_final <- modeling_game_vars_final %>% 
+  mutate(season = as.numeric(season),
+         week = as.numeric(week)) %>% 
+  filter(!is.na(qb)) %>% 
+  inner_join(., player_data, by=c('qb', 'season', 'week', 'team')) %>% 
+  mutate(years_left = expiring_year - season) %>% 
+  filter(season >= 2016)
+
+blah <- modeling_game_vars_final_final %>% 
+  dplyr::select(qb, season, week, team, rolling_avg_passer_rating, passer_rating)
 
 ################################################################################
 # Save
