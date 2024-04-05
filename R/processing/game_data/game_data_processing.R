@@ -505,7 +505,60 @@ blah <- modeling_game_vars_final_final %>%
 # Save
 ################################################################################
 
-data.table::fwrite(modeling_game_vars_final, "data/processed/games/modeling_game_data.csv")
+# Select variables
+names(modeling_game_vars_final_final)
+modeling_game_vars_final_final_final <- modeling_game_vars_final_final %>% 
+  rename(game_type = game_type.x) %>% 
+  dplyr::select(game_id, season, week, team, game_type, home_away, stadium_id, 
+                weekday, game_window, qb, coach, opposing_qb, opposing_coach, 
+                apy_cap_pct, years_left, home_rest, away_rest, div_game, roof, temp_conditions, 
+                wind_conditions, spread_line, points_scored, 
+                points_allowed, favored, score, result,
+                rolling_win_pct, rolling_off_ppg, rolling_off_pypg, 
+                rolling_off_rypg, rolling_off_typg, rolling_off_ptdpg, 
+                rolling_off_rtdpg, rolling_off_ttdpg, rolling_def_ppg, 
+                rolling_def_pypg, rolling_def_rypg, rolling_def_typg, 
+                rolling_def_ptdpg, rolling_def_rtdpg, rolling_def_ttdpg,
+                rolling_avg_time_to_throw, rolling_avg_completed_air_yards, 
+                rolling_avg_intended_air_yards, rolling_avg_air_yards_differential, 
+                rolling_avg_attempts, rolling_avg_pass_yards, rolling_avg_pass_touchdowns, 
+                rolling_avg_interceptions, rolling_avg_passer_rating, rolling_avg_completions, 
+                rolling_avg_completion_percentage, rolling_avg_expected_completion_percentage, 
+                rolling_avg_completion_percentage_above_expectation, rolling_avg_avg_air_distance, 
+                rolling_avg_max_air_distance, rolling_n_on_report, rolling_n_on_practice_report,
+                prev_season_win_pct, prev_season_off_ppg, 
+                prev_season_off_plays_per_game, prev_season_off_run_pct, 
+                prev_season_off_pass_pct, prev_season_off_pypg, 
+                prev_season_off_rypg, prev_season_off_typg, prev_season_off_ptdpg, 
+                prev_season_off_rtdpg, prev_season_off_ttdpg, prev_season_off_fdpg, 
+                prev_season_off_spg, prev_season_off_ipg, prev_season_def_ppg, 
+                prev_season_def_plays_per_game, prev_season_def_run_pct, 
+                prev_season_def_pass_pct, prev_season_def_pypg, 
+                prev_season_def_rypg, prev_season_def_typg, 
+                prev_season_def_ptdpg, prev_season_def_rtdpg, 
+                prev_season_def_ttdpg, prev_season_def_fdpg, 
+                prev_season_def_spg, prev_season_def_ipg)
+
+# Select IDS
+
+game_ids <- modeling_game_vars_final_final_final %>% 
+  pull(game_id) %>% 
+  unique()
+
+length(game_ids)
+home_ids <- sample(game_ids, length(game_ids)/2, replace = FALSE)
+away_ids <- game_ids[!game_ids %in% home_ids]
+
+home_data = modeling_game_vars_final_final_final %>% 
+  filter(game_id %in% home_ids & home_away == 'home')
+
+away_data = modeling_game_vars_final_final_final %>% 
+  filter(game_id %in% away_ids & home_away == 'away')
+
+modeling_game_vars_final_final_final_final <- rbind(home_data, away_data) %>% 
+  arrange(season, week, team)
+
+data.table::fwrite(modeling_game_vars_final_final_final_final, "data/processed/games/modeling_game_data.csv")
 
 
 
