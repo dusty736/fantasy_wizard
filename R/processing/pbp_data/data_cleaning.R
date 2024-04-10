@@ -71,6 +71,8 @@ game_data <- pbp_data %>%
                                   away_team)) %>% 
   ungroup(.)
 
+processed_game_data <- data.table::fread("data/processed/games/modeling_game_data.csv")
+
 ################################################################################
 # Calculate Team Stats
 ################################################################################
@@ -760,54 +762,123 @@ gc()
 # I need play by play where the id column is the game clock and possession team
 # Home and away teams will have accumulating variables like n_sack_home, n_sack_away
 
+defense_columns <- c('play_id', 'game_id', 'home_team', 
+                     'away_team', 'season_type', 'week', 
+                     'posteam', 'posteam_type', 'defteam', 
+                     'side_of_field', 'yardline_100', 'quarter_seconds_remaining', 
+                     'half_seconds_remaining', 'game_seconds_remaining', 
+                     'game_half', 'quarter_end', 'drive', 'qtr', 'down', 
+                     'goal_to_go', 'time', 'ydstogo', 'play_type', 
+                     'yards_gained', 'first_down', 'air_yards', 'yards_after_catch', 
+                     'td_team', 'posteam_timeouts_remaining', 'defteam_timeouts_remaining', 
+                     'total_home_score', 'total_away_score', 'posteam_score', 
+                     'defteam_score', 'score_differential', 'first_down_rush', 
+                     'first_down_pass', 'first_down_penalty', 'third_down_converted', 
+                     'third_down_failed', 'fourth_down_converted', 
+                     'fourth_down_failed', 'incomplete_pass', 'interception', 
+                     'qb_hit', 'rush_attempt', 'pass_attempt', 'sack', 
+                     'touchdown', 'pass_touchdown', 'rush_touchdown',
+                     'fumble', 'complete_pass', 'passing_yards', 
+                     'receiving_yards', 'rushing_yards', 'series', 
+                     'series_success')
+
 defense <- pbp_data %>% 
-  filter(!(desc %in% c('GAME', 'END QUARTER 1', 'Two-Minute Warning', 'END QUARTER 2',
-                     'END QUARTER 3', 'END GAME'))) %>% 
-  dplyr::select(game_id, week, home_team, away_team, defteam, time, quarter_seconds_remaining,
-                half_seconds_remaining, game_seconds_remaining, qtr, game_half, 
-                yrdln, down, goal_to_go, play_type, yards_gained,
-                home_timeouts_remaining, away_timeouts_remaining, posteam_score,
-                defteam_score, third_down_failed, fourth_down_failed, incomplete_pass, interception,
-                fumble_forced, fumble_lost, solo_tackle, safety, tackled_for_loss,
-                qb_hit, sack) %>% 
+  filter((play_type_nfl %in% c('PASS', 
+                               'RUSH',
+                               'PENALTY',
+                               'PUNT',
+                               'SACK',
+                               'XP_KICK',
+                               'FIELD_GOAL',
+                               'TIMEOUT',
+                               'INTERCEPTION',
+                               'FUMBLE_RECOVERED_BY_OPPONENT'))) %>% 
+  dplyr::select(play_id, game_id, home_team, 
+                away_team, season_type, week, 
+                posteam, posteam_type, defteam, 
+                posteam_score, defteam_score,
+                side_of_field, yardline_100, quarter_seconds_remaining, 
+                half_seconds_remaining, game_seconds_remaining, 
+                game_half, quarter_end, drive, qtr, down, 
+                goal_to_go, time, ydstogo, play_type, 
+                yards_gained, first_down, air_yards, yards_after_catch, 
+                td_team, posteam_timeouts_remaining, defteam_timeouts_remaining, 
+                total_home_score, total_away_score, posteam_score, 
+                defteam_score, score_differential, first_down_rush, 
+                first_down_pass, first_down_penalty, third_down_converted, 
+                third_down_failed, fourth_down_converted, 
+                fourth_down_failed, incomplete_pass, interception, 
+                qb_hit, rush_attempt, pass_attempt, sack, 
+                touchdown, pass_touchdown, rush_touchdown,
+                fumble, complete_pass, passing_yards, 
+                receiving_yards, rushing_yards, series, 
+                series_success) %>% 
   # Add score for defense
   mutate(defense_lead = ifelse(defteam_score > posteam_score,
                                1,
                                0),
+         def_score_diff = defteam_score - posteam_score,
          post_2min_warning = ifelse(half_seconds_remaining <= 120,
                                     1,
-                                    0)) %>% 
+                                    0),
+         off_td = td_team == posteam,
+         def_td = td_team == defteam) %>% 
   mutate(across(where(is.numeric), ~ replace(., is.na(.), 0))) %>% 
   group_by(game_id, defteam) %>% 
-  mutate(n_interception = cumsum(interception),
-         n_fumble_forced = cumsum(fumble_forced),
-         n_fumbled_recovered = cumsum(fumble_lost),
-         n_incomplete_pass = cumsum(incomplete_pass),
-         n_solo_tackle = cumsum(solo_tackle),
-         n_tackled_for_loss = cumsum(tackled_for_loss),
+  mutate(yards_allowed = cumsum(yards_gained),
+         n_first_downs_allowed = cumsum(first_down),
+         n_air_yards_allowed = cumsum(air_yards),
+         n_yac_allowed = cumsum(yards_after_catch),
+         n_def_td_scored = cumsum(def_td),
+         n_off_td_allowed = cumsum(off_td),
+         n_third_down_conv_allowed = cumsum(third_down_converted),
+         n_forth_down_conv_allowed = cumsum(fourth_down_converted),
+         n_third_down_conv_stopped = cumsum(third_down_failed),
+         n_forth_down_conv_stopped = cumsum(fourth_down_failed),
+         n_incomplete_pass_forced = cumsum(incomplete_pass),
+         n_interception = cumsum(interception),
+         n_fumble_forced = cumsum(fumble),
          n_qb_hit = cumsum(qb_hit),
-         n_sack = cumsum(sack),
-         n_third_down_stopped = cumsum(third_down_failed),
-         n_fourth_down_stopped = cumsum(fourth_down_failed)) %>% 
-  dplyr::select(game_id, week, defteam, time, qtr, n_interception, n_incomplete_pass,
-                n_solo_tackle, n_tackled_for_loss, n_qb_hit, n_sack, n_fumble_forced,
-                n_fumbled_recovered, n_third_down_stopped, n_fourth_down_stopped)
+         n_sack = cumsum(sack)) %>% 
+  dplyr::select(play_id, game_id, defteam, defense_lead, def_score_diff,
+                yards_allowed, n_first_downs_allowed, n_air_yards_allowed,
+                n_yac_allowed, n_def_td_scored, n_off_td_allowed, 
+                n_third_down_conv_allowed, n_forth_down_conv_allowed,
+                n_third_down_conv_stopped, n_forth_down_conv_stopped,
+                n_incomplete_pass_forced, n_interception, n_fumble_forced,
+                n_qb_hit, n_sack)
 
 offense <- pbp_data %>% 
-  filter(!(desc %in% c('GAME', 'END QUARTER 1', 'Two-Minute Warning', 'END QUARTER 2',
-                       'END QUARTER 3', 'END GAME'))) %>% 
-  dplyr::select(game_id, week, home_team, away_team, posteam, time, quarter_seconds_remaining,
-                half_seconds_remaining, game_seconds_remaining, qtr, game_half, 
-                yrdln, down, goal_to_go, play_type, ydstogo, yards_gained,
-                defteam_timeouts_remaining, posteam_timeouts_remaining, posteam_score,
-                defteam_score, passer_player_name, receiver_player_name, air_yards, yards_after_catch,
-                receiving_yards, incomplete_pass, complete_pass, rusher_player_name, 
-                rushing_yards, interception, fumble_lost, tackled_for_loss,
-                qb_hit, sack, posteam_score, defteam_score, posteam_timeouts_remaining,
-                first_down, first_down, third_down_converted, third_down_failed,
-                fourth_down_converted, fourth_down_failed, pass_touchdown,
-                rush_touchdown, field_goal_attempt, field_goal_result, drive_first_downs, 
-                drive_inside20, drive_yards_penalized) %>% 
+  filter((play_type_nfl %in% c('PASS', 
+                               'RUSH',
+                               'PENALTY',
+                               'PUNT',
+                               'SACK',
+                               'XP_KICK',
+                               'FIELD_GOAL',
+                               'TIMEOUT',
+                               'INTERCEPTION',
+                               'FUMBLE_RECOVERED_BY_OPPONENT'))) %>% 
+  dplyr::select(play_id, game_id, home_team, 
+                away_team, season_type, week, 
+                posteam, posteam_type, defteam, 
+                posteam_score, defteam_score,
+                side_of_field, yardline_100, drive, quarter_seconds_remaining, 
+                half_seconds_remaining, game_seconds_remaining, 
+                game_half, quarter_end, drive, qtr, down, 
+                goal_to_go, time, ydstogo, play_type, 
+                yards_gained, first_down, air_yards, yards_after_catch, 
+                td_team, posteam_timeouts_remaining, defteam_timeouts_remaining, 
+                total_home_score, total_away_score, posteam_score, 
+                defteam_score, score_differential, first_down_rush, 
+                first_down_pass, first_down_penalty, third_down_converted, 
+                third_down_failed, fourth_down_converted, 
+                fourth_down_failed, incomplete_pass, interception, 
+                qb_hit, rush_attempt, pass_attempt, sack, 
+                touchdown, pass_touchdown, rush_touchdown,
+                fumble, complete_pass, passing_yards, 
+                receiving_yards, rushing_yards, series, 
+                series_success) %>% 
   mutate(current_first_down = ifelse(down == 1 & play_type %in% c('run', 'pass'),
                                      1,
                                      0),
@@ -883,45 +954,103 @@ offense <- pbp_data %>%
   mutate(across(where(is.numeric), ~ replace(., is.na(.), 0))) %>% 
   group_by(game_id, posteam) %>% 
   mutate(n_rush = cumsum(rush),
+         n_rush_attempt = cumsum(rush),
          n_rush_yards = cumsum(rushing_yards),
          n_rush_negative = cumsum(rush_negative),
          n_rush_positive = cumsum(rush_positive),
-         pct_rush_10_plus = cumsum(rush_10_plus) / n_rush,
+         n_rush_10_plus = cumsum(rush_10_plus),
          n_rush_td = cumsum(rush_touchdown),
          n_pass = cumsum(pass),
+         n_incomplete = cumsum(incomplete_pass),
          n_air_yards = cumsum(air_yards),
          n_receiving_yards = cumsum(receiving_yards),
          n_receiving_yac = cumsum(yards_after_catch),
          n_passing_td = cumsum(pass_touchdown),
-         completion_pct = 1 - cumsum(incomplete_pass) / cumsum(pass),
-         completion_pct_0_10 = cumsum(pass_0_10_complete) / cumsum(pass_0_10_attempt),
-         completion_pct_10_20 = cumsum(pass_10_20_complete) / cumsum(pass_10_20_attempt),
-         completion_pct_20_30 = cumsum(pass_20_30_complete) / cumsum(pass_20_30_attempt),
-         completion_pct_30_40 = cumsum(pass_30_40_complete) / cumsum(pass_30_40_attempt),
-         completion_pct_40_plus = cumsum(pass_40_plus_complete) / cumsum(pass_40_plus_attempt),
-         pct_mtc_first_down = cumsum(current_first_down_converted) / cumsum(current_first_down),
-         pct_mtc_second_down = cumsum(current_second_down_converted) / cumsum(current_second_down),
-         pct_mtc_third_down = cumsum(current_third_down_converted) / cumsum(current_third_down),
-         pct_mtc_fourth_down = cumsum(current_forth_down_converted) / cumsum(current_forth_down),
-         n_drive_yards_penalized = cumsum(drive_yards_penalized)) %>% 
-  dplyr::select(game_id, posteam, time, qtr, off_lead, n_rush, n_rush_yards, 
-                n_rush_negative, n_rush_positive, pct_rush_10_plus, n_rush_td,
-                n_pass, n_air_yards, n_receiving_yards, n_receiving_yac, 
-                n_passing_td, completion_pct, completion_pct_0_10, completion_pct_10_20,
-                completion_pct_20_30, completion_pct_30_40, completion_pct_40_plus, 
-                pct_mtc_first_down, pct_mtc_second_down, pct_mtc_third_down, pct_mtc_fourth_down,
-                n_drive_yards_penalized) %>% 
+         n_completion_0_10 = cumsum(pass_0_10_complete),
+         n_completion_10_20 = cumsum(pass_10_20_complete),
+         n_completion_20_30 = cumsum(pass_20_30_complete),
+         n_completion_30_40 = cumsum(pass_30_40_complete),
+         n_completion_40_plus = cumsum(pass_40_plus_complete),
+         n_first_down_convert = cumsum(current_first_down_converted),
+         n_second_down_convert = cumsum(current_second_down_converted),
+         n_third_down_convert = cumsum(current_third_down_converted),
+         n_fourth_down_convert = cumsum(current_forth_down_converted)) %>% 
+  dplyr::select(play_id, game_id, posteam, time, qtr, off_lead, n_rush, n_rush_yards, 
+                n_rush_negative, n_rush_positive, n_rush_10_plus, n_rush_td,
+                n_pass, n_incomplete, n_air_yards, n_receiving_yards, n_receiving_yac, 
+                n_passing_td, n_completion_0_10, n_completion_10_20,
+                n_completion_20_30, n_completion_30_40, n_completion_40_plus, 
+                n_first_down_convert, n_second_down_convert, 
+                n_third_down_convert, n_fourth_down_convert) %>% 
   mutate_if(is.numeric, round, 2)
 
+# Special Teams
+kicks <- pbp_data %>% 
+  #filter(play_type %in% c('field_goal', 'extra_point') | two_point_attempt == 1) %>% 
+  filter(play_type_nfl %in% c('PASS', 
+                        'RUSH',
+                        'PENALTY',
+                        'PUNT',
+                        'SACK',
+                        'XP_KICK',
+                        'FIELD_GOAL',
+                        'TIMEOUT',
+                        'INTERCEPTION',
+                        'FUMBLE_RECOVERED_BY_OPPONENT')) %>% 
+  dplyr::select(game_id, play_id, posteam, play_type, yardline_100,
+                kick_distance, field_goal_result, extra_point_result,
+                two_point_conv_result) %>% 
+  group_by(game_id, posteam) %>% 
+  mutate(n_made_fg = cumsum(field_goal_result == 'made'),
+         n_miss_fg = cumsum(field_goal_result %in% c('blocked', 'missed')),
+         n_made_fg_0_20 = cumsum(field_goal_result == 'made' & kick_distance < 20),
+         n_made_fg_20_30 = cumsum(field_goal_result == 'made' & (kick_distance >= 20 & kick_distance < 30)),
+         n_made_fg_30_40 = cumsum(field_goal_result == 'made' & (kick_distance >= 30 & kick_distance < 40)),
+         n_made_fg_40_50 = cumsum(field_goal_result == 'made' & (kick_distance >= 40 & kick_distance < 50)),
+         n_made_fg_50_60 = cumsum(field_goal_result == 'made' & (kick_distance >= 50 & kick_distance < 60)),
+         n_made_fg_60_plus = cumsum(field_goal_result == 'made' & kick_distance >= 60),
+         n_made_xpt = cumsum(extra_point_result == 'good'),
+         n_miss_xpt = cumsum(extra_point_result %in% c('blocked', 'failed')),
+         n_made_2pt = cumsum(two_point_conv_result == 'success'),
+         n_miss_2pt = cumsum(two_point_conv_result == 'failure')) %>% 
+  dplyr::select(game_id, play_id, posteam, n_made_fg, n_miss_fg, n_made_fg_0_20,
+                n_made_fg_20_30, n_made_fg_30_40, n_made_fg_40_50, n_made_fg_50_60,
+                n_made_fg_60_plus, n_made_xpt, n_miss_xpt, n_made_2pt, n_miss_2pt)
+
 # combine
-pbp_eng <- offense %>% 
-  left_join(., defense, by=c('game_id', 'time', 'qtr'))
+pbp_total_data <- pbp_data %>% 
+  dplyr::select(game_id, play_id, home_team, away_team, total_home_score, total_away_score,
+                season_type, week, posteam, posteam_type, defteam,
+                yardline_100, quarter_seconds_remaining, game_seconds_remaining,
+                game_half, play_type) %>% 
+  left_join(., offense, by=c('game_id', 'play_id', 'posteam')) %>% 
+  left_join(., defense, by=c('game_id', 'play_id', 'defteam')) %>% 
+  left_join(., kicks, by=c('game_id', 'play_id', 'posteam'))
 
 
+# Add in game and season data
+modeling_game_vars <- data.table::fread("data/processed/games/modeling_game_data_full.csv")
+coaching_vars <- data.table::fread("data/processed/coaches/processed_coaching_data.csv")
+
+# Offense
+offense_modeling_vars <- modeling_game_vars %>% 
+  dplyr::select(game_id, team, contains("off"), rolling_win_pct) %>% 
+  rename(off_rolling_win_pct = rolling_win_pct,
+         posteam = team)
+
+# Defense
+defense_modeling_vars <- modeling_game_vars %>% 
+  dplyr::select(game_id, team, contains("def"), rolling_win_pct) %>% 
+  rename(def_rolling_win_pct = rolling_win_pct,
+         defteam = team)
+
+modeling_pbp_data <- pbp_total_data %>% 
+  left_join(., offense_modeling_vars, by=c('game_id', 'posteam')) %>% 
+  left_join(., defense_modeling_vars, by=c('game_id', 'defteam')) %>% 
+  filter(substr(game_id, 1, 4) >= 2016)
+
+# Coaches
 
 
-
-
-
-
+data.table::fwrite(modeling_pbp_data, "data/processed/games/modeling_pbp_data.csv")
 

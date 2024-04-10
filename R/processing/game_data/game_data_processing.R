@@ -545,20 +545,20 @@ game_ids <- modeling_game_vars_final_final_final %>%
   pull(game_id) %>% 
   unique()
 
-length(game_ids)
-home_ids <- sample(game_ids, length(game_ids)/2, replace = FALSE)
-away_ids <- game_ids[!game_ids %in% home_ids]
+# length(game_ids)
+# home_ids <- sample(game_ids, length(game_ids)/2, replace = FALSE)
+# away_ids <- game_ids[!game_ids %in% home_ids]
+# 
+# home_data = modeling_game_vars_final_final_final %>% 
+#   filter(game_id %in% home_ids & home_away == 'home')
+# 
+# away_data = modeling_game_vars_final_final_final %>% 
+#   filter(game_id %in% away_ids & home_away == 'away')
+# 
+# modeling_game_vars_final_final_final_final <- rbind(home_data, away_data) %>% 
+#   arrange(season, week, team)
 
-home_data = modeling_game_vars_final_final_final %>% 
-  filter(game_id %in% home_ids & home_away == 'home')
-
-away_data = modeling_game_vars_final_final_final %>% 
-  filter(game_id %in% away_ids & home_away == 'away')
-
-modeling_game_vars_final_final_final_final <- rbind(home_data, away_data) %>% 
-  arrange(season, week, team)
-
-data.table::fwrite(modeling_game_vars_final_final_final_final, "data/processed/games/modeling_game_data.csv")
+data.table::fwrite(modeling_game_vars_final_final_final, "data/processed/games/modeling_game_data_full.csv")
 
 
 
